@@ -1,30 +1,13 @@
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseNotFound, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 from .forms import *
 from .models import *
-
-
-class WomenHome(ListView):
-    model = Women
-    template_name = 'women/home.html'
-    context_object_name = 'posts'
-
-    # extra_context = {  # только статика
-    #     'title': 'Home'
-    # }
-
-    def get_context_data(self, *, object_list=None, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Home'
-        context['category_selected'] = 0
-
-        return context
-
-    def get_queryset(self):
-        return Women.objects.filter(is_published=True)
+from .utils import *
 
 
 # def home(request):
@@ -38,6 +21,8 @@ class WomenHome(ListView):
 #     return render(request, 'women/home.html', context=context)
 
 
+# @login_required
+# декоратор для ограницения неавторизованного пользователя
 def about(request):
     context = {
         'title': 'About'
@@ -98,6 +83,7 @@ def login(request):
         'title': 'Login',
         'posts': posts
     }
+
     return render(request, 'women/login.html', context=context)
 
 
@@ -127,7 +113,26 @@ def login(request):
 #     return render(request, 'women/category.html', context=context)
 
 
-class ShowArticle(DetailView):
+class WomenHome(DataMixin, ListView):
+    model = Women
+    template_name = 'women/home.html'
+    context_object_name = 'posts'
+
+    # extra_context = {  # только статика
+    #     'title': 'Home'
+    # }
+
+    def get_context_data(self, *, object_list=None, **kwargs):
+        context = super().get_context_data(**kwargs)
+        c_def = self.get_user_context(title='Home')
+
+        return dict(list(context.items()) + list(c_def.items()))
+
+    def get_queryset(self):
+        return Women.objects.filter(is_published=True)
+
+
+class ShowArticle(DataMixin, DetailView):
     model = Women
     template_name = 'women/article.html'
     slug_url_kwarg = 'article_slug'
@@ -135,13 +140,12 @@ class ShowArticle(DetailView):
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = context['article']
-        context['category_selected'] = context['article'].category_id
+        c_def = self.get_user_context(title=context['article'], category_selected=context['article'].category_id)
 
-        return context
+        return dict(list(context.items()) + list(c_def.items()))
 
 
-class WomenCategory(ListView):
+class WomenCategory(DataMixin, ListView):
     model = Women
     template_name = 'women/home.html'
     context_object_name = 'posts'
@@ -149,22 +153,24 @@ class WomenCategory(ListView):
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Category - ' + str(context['posts'][0].category)
-        context['category_selected'] = context['posts'][0].category_id
+        c_def = self.get_user_context(title='Category - ' + str(context['posts'][0].category), category_selected=context['posts'][0].category_id)
 
-        return context
+        return dict(list(context.items()) + list(c_def.items()))
 
     def get_queryset(self):
         return Women.objects.filter(category__slug=self.kwargs['category_slug'], is_published=True)
 
 
-class AddArticle(CreateView):
+class AddArticle(LoginRequiredMixin, DataMixin, CreateView):
+    login_url = reverse_lazy('home')  # редирект не авторизованного пользователя
+    raise_exception = True  # ошибка для не авторизованного пользователя
+
     form_class = AddArticleForm
     template_name = 'women/add_article.html'
     success_url = reverse_lazy('home')  # редирект после добавления
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Add article'
+        c_def = self.get_user_context(title='Add article')
 
-        return context
+        return dict(list(context.items()) + list(c_def.items()))

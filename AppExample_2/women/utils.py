@@ -1,4 +1,5 @@
 from django.db.models import Count
+from django.core.cache import cache
 
 from .models import *
 
@@ -6,15 +7,22 @@ menu = [
         {'title': 'Home', 'url': 'home'},
         {'title': 'Add article ', 'url': 'add_article'},
         {'title': 'Contacts', 'url': 'contacts'},
-        {'title': 'About', 'url': 'about'},
-        {'title': 'Login', 'url': 'login'}
+        {'title': 'About', 'url': 'about'}
     ]
 
 
 class DataMixin:
+    paginate_by = 50
+
     def get_user_context(self, **kwargs):
         context = kwargs
-        context['categories'] = Category.objects.all()
+
+        categories = cache.get('categories')
+        if not categories:
+            categories = Category.objects.all()
+            cache.set('categories', categories, 60)
+
+        context['categories'] = categories
 
         if 'category_selected' not in context:
             context['category_selected'] = 0
